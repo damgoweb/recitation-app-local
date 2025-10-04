@@ -6,6 +6,7 @@ import { useTexts } from '@/hooks/useTexts';
 import { Button, Loading } from '@/components/ui';
 import { useEffect } from 'react';
 import { ExportButton } from '@/components/ExportButton';
+import { ImportButton } from '@/components/ImportButton';
 
 // 重いコンポーネントを動的インポート
 const ProgressBar = dynamic(() => import('@/components/ProgressBar').then(mod => ({ default: mod.ProgressBar })), {
@@ -75,6 +76,7 @@ export default function HomePage() {
           >
             + 新しいテキストを追加
           </Button>
+          <ImportButton onImportComplete={refetch} />
           <ExportButton />
         </div>
       </div>

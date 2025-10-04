@@ -1,45 +1,44 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Button, Modal } from '@/components/ui';
-import { TextForm } from '@/components/TextForm';
+import { Button } from '@/components/ui';
+import { createText } from '@/lib/storage/texts';
 
 export default function NewTextPage() {
   const router = useRouter();
-  const [showSuccessModal, setShowSuccessModal] = useState(false);
-  const [createdTextId, setCreatedTextId] = useState<string>('');
+  const [title, setTitle] = useState('');
+  const [author, setAuthor] = useState('');
+  const [content, setContent] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const handleSubmit = async (data: { title: string; author: string; content: string }) => {
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!title.trim() || !author.trim() || !content.trim()) {
+      setError('すべての項目を入力してください');
+      return;
+    }
+
+    setIsSubmitting(true);
+    setError(null);
+
     try {
-      setError(null);
-      
-      const response = await fetch('/api/texts', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(data),
+      const newText = await createText({
+        title: title.trim(),
+        author: author.trim(),
+        content: content.trim(),
+        isCustom: true,
       });
 
-      const result = await response.json();
-
-      if (!response.ok || !result.success) {
-        throw new Error(result.error?.message || 'テキストの追加に失敗しました');
-      }
-
-      setCreatedTextId(result.data.id);
-      setShowSuccessModal(true);
+      // 作成したテキストの詳細ページに遷移
+      router.push(`/texts/${newText.id}`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : '予期しないエラーが発生しました');
-    }
-  };
-
-  const handleCancel = () => {
-    if (confirm('入力内容が失われますが、よろしいですか？')) {
-      router.push('/');
+      console.error('Failed to create text:', err);
+      setError(err instanceof Error ? err.message : 'テキストの作成に失敗しました');
+      setIsSubmitting(false);
     }
   };
 
@@ -56,56 +55,103 @@ export default function NewTextPage() {
 
       {/* ヘッダー */}
       <div className="bg-white rounded-xl shadow-md p-6 mb-6">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">
+        <h1 className="text-3xl font-bold text-gray-900">
           新しいテキストを追加
         </h1>
-        <p className="text-lg text-gray-600">
-          朗読したい文章を入力してください
+        <p className="text-lg text-gray-600 mt-2">
+          朗読したいテキストを追加できます
         </p>
       </div>
-
-      {/* エラー表示 */}
-      {error && (
-        <div className="bg-red-50 border-2 border-red-200 rounded-xl p-4 mb-6">
-          <p className="text-lg text-red-600">{error}</p>
-        </div>
-      )}
 
       {/* フォーム */}
-      <div className="bg-white rounded-xl shadow-md p-6">
-        <TextForm
-          mode="create"
-          onSubmit={handleSubmit}
-          onCancel={handleCancel}
-        />
-      </div>
+      <form onSubmit={handleSubmit} className="bg-white rounded-xl shadow-md p-6">
+        {/* エラー表示 */}
+        {error && (
+          <div className="bg-red-50 border-2 border-red-200 rounded-xl p-4 mb-6">
+            <p className="text-lg text-red-600">{error}</p>
+          </div>
+        )}
 
-      {/* 成功モーダル */}
-      <Modal
-        isOpen={showSuccessModal}
-        onClose={() => {}}
-        title="追加完了"
-        footer={
-          <>
+        <div className="space-y-6">
+          {/* タイトル */}
+          <div>
+            <label htmlFor="title" className="block text-lg font-medium text-gray-900 mb-2">
+              タイトル <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="text"
+              id="title"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              className="w-full px-4 py-3 text-lg border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              placeholder="例: 竹取物語"
+              disabled={isSubmitting}
+              required
+            />
+          </div>
+
+          {/* 著者 */}
+          <div>
+            <label htmlFor="author" className="block text-lg font-medium text-gray-900 mb-2">
+              著者 <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="text"
+              id="author"
+              value={author}
+              onChange={(e) => setAuthor(e.target.value)}
+              className="w-full px-4 py-3 text-lg border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              placeholder="例: 作者不詳"
+              disabled={isSubmitting}
+              required
+            />
+          </div>
+
+          {/* 本文 */}
+          <div>
+            <label htmlFor="content" className="block text-lg font-medium text-gray-900 mb-2">
+              本文 <span className="text-red-500">*</span>
+            </label>
+            <textarea
+              id="content"
+              value={content}
+              onChange={(e) => setContent(e.target.value)}
+              rows={15}
+              className="w-full px-4 py-3 text-lg border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-y"
+              placeholder="朗読したい本文を入力してください"
+              disabled={isSubmitting}
+              required
+            />
+            <p className="text-base text-gray-600 mt-2">
+              文字数: {content.length}
+            </p>
+          </div>
+
+          {/* ボタン */}
+          <div className="flex gap-4">
             <Button
-              variant="secondary"
-              onClick={() => router.push('/')}
-            >
-              一覧に戻る
-            </Button>
-            <Button
+              type="submit"
               variant="primary"
-              onClick={() => router.push(`/texts/${createdTextId}`)}
+              size="lg"
+              isLoading={isSubmitting}
+              className="flex-1"
             >
-              詳細を見る
+              作成する
             </Button>
-          </>
-        }
-      >
-        <p className="text-lg text-gray-700">
-          テキストを追加しました。
-        </p>
-      </Modal>
+            <Link href="/" className="flex-1">
+              <Button
+                type="button"
+                variant="secondary"
+                size="lg"
+                disabled={isSubmitting}
+                className="w-full"
+              >
+                キャンセル
+              </Button>
+            </Link>
+          </div>
+        </div>
+      </form>
     </div>
   );
 }

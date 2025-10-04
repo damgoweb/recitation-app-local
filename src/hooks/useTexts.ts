@@ -1,56 +1,36 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { getAllTexts } from '@/lib/storage/texts';
+import { getRecordingsWithTextIds } from '@/lib/storage/recordings';
 import { TextWithRecording } from '@/types';
 
-// メモリキャッシュ
-let cachedTexts: TextWithRecording[] | null = null;
-let cacheTimestamp: number | null = null;
-const CACHE_DURATION = 5 * 60 * 1000; // 5分
-
-// キャッシュをクリアする関数をエクスポート
-export function clearTextsCache() {
-  cachedTexts = null;
-  cacheTimestamp = null;
-}
-
 export function useTexts() {
-  const [texts, setTexts] = useState<TextWithRecording[]>(cachedTexts || []);
-  const [isLoading, setIsLoading] = useState(!cachedTexts);
+  const [texts, setTexts] = useState<TextWithRecording[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const fetchTexts = useCallback(async () => {
-    // キャッシュが有効な場合は使用
-    if (cachedTexts && cacheTimestamp && Date.now() - cacheTimestamp < CACHE_DURATION) {
-      setTexts(cachedTexts);
-      setIsLoading(false);
-      return;
-    }
-
     try {
       setIsLoading(true);
-      const response = await fetch('/api/texts', {
-        cache: 'no-store',
-        headers: {
-          'Cache-Control': 'no-cache',
-        }
-      });
-      
-      if (!response.ok) {
-        throw new Error('テキストの取得に失敗しました');
-      }
+      setError(null);
 
-      const data = await response.json();
-      
-      if (data.success) {
-        cachedTexts = data.data;
-        cacheTimestamp = Date.now();
-        setTexts(data.data);
-      } else {
-        throw new Error(data.error?.message || 'エラーが発生しました');
-      }
+      // テキストと録音を並行取得
+      const [allTexts, recordingsMap] = await Promise.all([
+        getAllTexts(),
+        getRecordingsWithTextIds(),
+      ]);
+
+      // テキストに録音状態を追加
+      const textsWithRecording: TextWithRecording[] = allTexts.map(text => ({
+        ...text,
+        hasRecording: recordingsMap.has(text.id),
+      }));
+
+      setTexts(textsWithRecording);
     } catch (err) {
-      setError(err instanceof Error ? err.message : '予期しないエラーが発生しました');
+      console.error('Failed to fetch texts:', err);
+      setError(err instanceof Error ? err.message : 'テキストの取得に失敗しました');
     } finally {
       setIsLoading(false);
     }
@@ -61,8 +41,6 @@ export function useTexts() {
   }, [fetchTexts]);
 
   const refetch = useCallback(() => {
-    // キャッシュをクリアして再取得
-    clearTextsCache();
     fetchTexts();
   }, [fetchTexts]);
 

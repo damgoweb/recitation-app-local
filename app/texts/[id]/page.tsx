@@ -1,44 +1,72 @@
-import { notFound } from 'next/navigation';
-import { sql } from '@vercel/postgres';
+'use client';
+
+import { useState, useEffect } from 'react';
+import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Button } from '@/components/ui';
+import { Button, Loading } from '@/components/ui';
 import { TextDetailClient } from '@/components/TextDetailClient';
+import { getTextById } from '@/lib/storage/texts';
 
-async function getText(id: string) {
-  try {
-    const result = await sql`
-      SELECT 
-        id,
-        title,
-        author,
-        content,
-        is_custom as "isCustom",
-        created_at as "createdAt"
-      FROM texts
-      WHERE id = ${id}
-    `;
-
-    if (result.rows.length === 0) {
-      return null;
-    }
-
-    return result.rows[0];
-  } catch (error) {
-    console.error('Failed to fetch text:', error);
-    return null;
-  }
+interface Text {
+  id: string;
+  title: string;
+  author: string;
+  content: string;
+  isCustom: boolean;
+  createdAt: string;
 }
 
-export default async function TextDetailPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
-  const { id } = await params;
-  const text = await getText(id);
+export default function TextDetailPage() {
+  const params = useParams();
+  const router = useRouter();
+  const id = params.id as string;
 
-  if (!text) {
-    notFound();
+  const [text, setText] = useState<Text | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function loadText() {
+      try {
+        setIsLoading(true);
+        const data = await getTextById(id);
+        
+        if (!data) {
+          setError('テキストが見つかりません');
+          return;
+        }
+        
+        setText(data);
+      } catch (err) {
+        console.error('Failed to load text:', err);
+        setError('テキストの読み込みに失敗しました');
+      } finally {
+        setIsLoading(false);
+      }
+    }
+
+    loadText();
+  }, [id]);
+
+  if (isLoading) {
+    return (
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        <Loading size="lg" text="読み込み中..." />
+      </div>
+    );
+  }
+
+  if (error || !text) {
+    return (
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        <div className="bg-red-50 border-2 border-red-200 rounded-xl p-6 text-center">
+          <p className="text-xl text-red-600 mb-4">{error || 'テキストが見つかりません'}</p>
+          <Link href="/">
+            <Button variant="primary">一覧に戻る</Button>
+          </Link>
+        </div>
+      </div>
+    );
   }
 
   return (

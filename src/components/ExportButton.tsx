@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { Button } from '@/components/ui';
+import { getAllTexts } from '@/lib/storage/texts';
 
 export function ExportButton() {
   const [isExporting, setIsExporting] = useState(false);
@@ -12,14 +13,19 @@ export function ExportButton() {
     setError(null);
 
     try {
-      const response = await fetch('/api/export/texts');
-      
-      if (!response.ok) {
-        throw new Error('エクスポートに失敗しました');
-      }
+      // IndexedDBから直接テキストを取得
+      const texts = await getAllTexts();
 
-      // ファイルとしてダウンロード
-      const blob = await response.blob();
+      const exportData = {
+        version: '1.0',
+        exportedAt: new Date().toISOString(),
+        texts: texts,
+      };
+
+      // JSONファイルとしてダウンロード
+      const blob = new Blob([JSON.stringify(exportData, null, 2)], {
+        type: 'application/json',
+      });
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;

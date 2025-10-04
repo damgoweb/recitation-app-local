@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { Button, Modal } from '@/components/ui';
 import { useRecorder } from '@/hooks';
 import { formatDuration } from '@/lib/utils';
-import { clearTextsCache } from '@/hooks/useTexts';
+import { saveRecording } from '@/lib/storage/recordings';
 
 interface RecordingControlsProps {
   textId: string;
@@ -29,8 +29,8 @@ export function RecordingControls({
     error: recorderError,
   } = useRecorder();
 
-  const [isUploading, setIsUploading] = useState(false);
-  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [showOverwriteModal, setShowOverwriteModal] = useState(false);
 
   const handleStartRecording = async () => {
@@ -51,49 +51,34 @@ export function RecordingControls({
     stopRecording();
   };
 
-  const handleUpload = async () => {
+  const handleSave = async () => {
     if (!audioBlob) {
-      setUploadError('録音データがありません');
+      setSaveError('録音データがありません');
       return;
     }
 
-    setIsUploading(true);
-    setUploadError(null);
+    setIsSaving(true);
+    setSaveError(null);
 
     try {
-      const formData = new FormData();
-      formData.append('textId', textId);
-      formData.append('audioFile', audioBlob, 'recording.webm');
-      formData.append('duration', duration.toString());
-      formData.append('recordedAt', new Date().toISOString());
-
-      const response = await fetch('/api/recordings', {
-        method: 'POST',
-        body: formData,
+      // IndexedDBに保存
+      await saveRecording({
+        textId,
+        audioBlob,
+        duration,
+        recordedAt: new Date().toISOString(),
       });
-
-      const result = await response.json();
-
-      if (!response.ok || !result.success) {
-        throw new Error(result.error?.message || 'アップロードに失敗しました');
-      }
-
-      // 一覧画面のキャッシュをクリア
-      clearTextsCache();
-
-      // データベースのレプリケーション遅延を考慮して待機
-      await new Promise(resolve => setTimeout(resolve, 1000));
 
       // 成功したらコールバックを実行
       onRecordingComplete();
     } catch (err) {
-      setUploadError(err instanceof Error ? err.message : '予期しないエラーが発生しました');
+      setSaveError(err instanceof Error ? err.message : '保存に失敗しました');
     } finally {
-      setIsUploading(false);
+      setIsSaving(false);
     }
   };
 
-  const error = recorderError || uploadError;
+  const error = recorderError || saveError;
 
   return (
     <div className="space-y-6">
@@ -140,7 +125,7 @@ export function RecordingControls({
             録音完了（{formatDuration(duration)}）
           </p>
           <p className="text-base text-green-600">
-            「保存する」ボタンを押してアップロードしてください
+            「保存する」ボタンを押して保存してください
           </p>
         </div>
       )}
@@ -180,8 +165,8 @@ export function RecordingControls({
             <Button
               variant="primary"
               size="lg"
-              onClick={handleUpload}
-              isLoading={isUploading}
+              onClick={handleSave}
+              isLoading={isSaving}
               className="flex-1"
             >
               保存する
@@ -190,7 +175,7 @@ export function RecordingControls({
               variant="secondary"
               size="lg"
               onClick={() => window.location.reload()}
-              disabled={isUploading}
+              disabled={isSaving}
             >
               やり直す
             </Button>

@@ -11,13 +11,13 @@ const notoSansJP = Noto_Sans_JP({
 });
 
 export const metadata: Metadata = {
-  title: "朗読エクササイズ",
+  title: "朗読エクササイズローカル版",
   description: "認知症予防のための古典文学朗読アプリ",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "朗読エクササイズ",
+    title: "朗読エクササイズローカル版",
   },
 };
 

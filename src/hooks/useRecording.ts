@@ -1,7 +1,12 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { clearTextsCache } from './useTexts';
+import { 
+  getRecordingByTextId, 
+  deleteRecording as deleteRecordingFromDB,
+  createAudioUrl,
+  revokeAudioUrl 
+} from '@/lib/storage/recordings';
 
 interface Recording {
   id: string;
@@ -17,30 +22,41 @@ export function useRecording(textId: string) {
   const [recording, setRecording] = useState<Recording | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [currentUrl, setCurrentUrl] = useState<string | null>(null);
 
   const fetchRecording = async () => {
     try {
       setIsLoading(true);
-      const response = await fetch(`/api/recordings/by-text/${textId}`, {
-        cache: 'no-store',
-        headers: {
-          'Cache-Control': 'no-cache',
-        }
-      });
-      
-      if (!response.ok) {
-        throw new Error('録音の取得に失敗しました');
+      setError(null);
+
+      // 以前のURLを解放
+      if (currentUrl) {
+        revokeAudioUrl(currentUrl);
+        setCurrentUrl(null);
       }
 
-      const data = await response.json();
+      const rec = await getRecordingByTextId(textId);
       
-      if (data.success) {
-        setRecording(data.data);
+      if (rec) {
+        // BlobからURLを生成
+        const url = createAudioUrl(rec.audioBlob);
+        setCurrentUrl(url);
+
+        setRecording({
+          id: rec.id,
+          textId: rec.textId,
+          audioBlobUrl: url,
+          duration: rec.duration,
+          fileSize: rec.fileSize,
+          mimeType: rec.mimeType,
+          recordedAt: rec.recordedAt,
+        });
       } else {
-        throw new Error(data.error?.message || 'エラーが発生しました');
+        setRecording(null);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : '予期しないエラーが発生しました');
+      console.error('Failed to fetch recording:', err);
+      setError(err instanceof Error ? err.message : '録音の取得に失敗しました');
     } finally {
       setIsLoading(false);
     }
@@ -48,18 +64,15 @@ export function useRecording(textId: string) {
 
   const deleteRecording = async (recordingId: string) => {
     try {
-      const response = await fetch(`/api/recordings/${recordingId}`, {
-        method: 'DELETE',
-      });
-
-      if (!response.ok) {
-        throw new Error('録音の削除に失敗しました');
-      }
-
-      setRecording(null);
+      await deleteRecordingFromDB(recordingId);
       
-      // 一覧画面のキャッシュもクリア
-      clearTextsCache();
+      // URLを解放
+      if (currentUrl) {
+        revokeAudioUrl(currentUrl);
+        setCurrentUrl(null);
+      }
+      
+      setRecording(null);
     } catch (err) {
       throw err;
     }
@@ -67,6 +80,13 @@ export function useRecording(textId: string) {
 
   useEffect(() => {
     fetchRecording();
+
+    // クリーンアップ: URLを解放
+    return () => {
+      if (currentUrl) {
+        revokeAudioUrl(currentUrl);
+      }
+    };
   }, [textId]);
 
   return {
