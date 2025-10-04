@@ -1,0 +1,37 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* タッチデバイス最適化 */
+@media (hover: none) and (pointer: coarse) {
+  /* タップハイライトの色を調整 */
+  * {
+    -webkit-tap-highlight-color: rgba(59, 130, 246, 0.1);
+  }
+
+  /* スクロールの慣性を改善 */
+  body {
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* ボタンのタップ領域を確保 */
+  button,
+  a {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}
+
+/* 横向き対応 */
+@media (orientation: landscape) and (max-height: 500px) {
+  .min-h-screen {
+    min-height: 100vh;
+  }
+}
+
+/* 小さい画面でのフォントサイズ調整 */
+@media (max-width: 374px) {
+  html {
+    font-size: 16px;
+  }
+}
